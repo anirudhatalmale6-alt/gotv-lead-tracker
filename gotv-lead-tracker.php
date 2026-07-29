@@ -3,7 +3,7 @@
  * Plugin Name:       GOTV Lead Tracker
  * Plugin URI:        https://gotvadvantage.com
  * Description:        Capture registration leads and tag each one with the campaign/source it came from. Includes a registration form shortcode, source tracking via link parameters, confirmation emails, and an admin screen to view, filter, and export leads by source.
- * Version:           1.0.0
+ * Version:           1.0.1
  * Author:            Anirudha Talmale
  * License:           GPL-2.0+
  * Text Domain:       gotv-lead-tracker
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // No direct access.
 }
 
-define( 'GOTVLT_VERSION', '1.0.0' );
+define( 'GOTVLT_VERSION', '1.0.1' );
 define( 'GOTVLT_TABLE', 'gotv_leads' );
 define( 'GOTVLT_FILE', __FILE__ );
 
@@ -53,6 +53,8 @@ function gotvlt_activate() {
 		'gotvlt_confirmation_body',
 		"Hi {name},\n\nThanks for registering! We've received your details and someone from our team will be in touch shortly.\n\nTalk soon,\nThe GOTV Advantage Team"
 	);
+	add_option( 'gotvlt_from_email', 'Brianmeeter@gotvadvantage.com' );
+	add_option( 'gotvlt_from_name', 'GOTV Advantage' );
 }
 register_activation_hook( GOTVLT_FILE, 'gotvlt_activate' );
 
@@ -215,7 +217,14 @@ function gotvlt_send_confirmation( $name, $email ) {
 	$body    = get_option( 'gotvlt_confirmation_body', "Hi {name},\n\nThanks for registering!" );
 	$body    = str_replace( '{name}', $name, $body );
 
-	$headers = array( 'Content-Type: text/plain; charset=UTF-8' );
+	$headers    = array( 'Content-Type: text/plain; charset=UTF-8' );
+	$from_email = get_option( 'gotvlt_from_email', '' );
+	$from_name  = get_option( 'gotvlt_from_name', '' );
+	if ( $from_email && is_email( $from_email ) ) {
+		$from_name = $from_name ? $from_name : $from_email;
+		$headers[] = 'From: ' . $from_name . ' <' . $from_email . '>';
+		$headers[] = 'Reply-To: ' . $from_email;
+	}
 
 	return wp_mail( $email, $subject, $body, $headers );
 }
@@ -429,11 +438,15 @@ function gotvlt_settings_page() {
 	if ( isset( $_POST['gotvlt_save_settings'] ) && check_admin_referer( 'gotvlt_settings_action' ) ) {
 		update_option( 'gotvlt_confirmation_subject', sanitize_text_field( wp_unslash( $_POST['gotvlt_confirmation_subject'] ?? '' ) ) );
 		update_option( 'gotvlt_confirmation_body', sanitize_textarea_field( wp_unslash( $_POST['gotvlt_confirmation_body'] ?? '' ) ) );
+		update_option( 'gotvlt_from_email', sanitize_email( wp_unslash( $_POST['gotvlt_from_email'] ?? '' ) ) );
+		update_option( 'gotvlt_from_name', sanitize_text_field( wp_unslash( $_POST['gotvlt_from_name'] ?? '' ) ) );
 		echo '<div class="notice notice-success is-dismissible"><p>Settings saved.</p></div>';
 	}
 
-	$subject = get_option( 'gotvlt_confirmation_subject', '' );
-	$body    = get_option( 'gotvlt_confirmation_body', '' );
+	$subject    = get_option( 'gotvlt_confirmation_subject', '' );
+	$body       = get_option( 'gotvlt_confirmation_body', '' );
+	$from_email = get_option( 'gotvlt_from_email', '' );
+	$from_name  = get_option( 'gotvlt_from_name', '' );
 	?>
 	<div class="wrap">
 		<h1>Confirmation Email</h1>
@@ -441,6 +454,17 @@ function gotvlt_settings_page() {
 		<form method="post">
 			<?php wp_nonce_field( 'gotvlt_settings_action' ); ?>
 			<table class="form-table">
+				<tr>
+					<th scope="row"><label for="gotvlt_from_email">Send emails from</label></th>
+					<td>
+						<input name="gotvlt_from_email" id="gotvlt_from_email" type="email" class="regular-text" value="<?php echo esc_attr( $from_email ); ?>" placeholder="you@yourdomain.com">
+						<p class="description">The "from" address on confirmation emails. Best deliverability when it's an address on your own domain.</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="gotvlt_from_name">Sender name</label></th>
+					<td><input name="gotvlt_from_name" id="gotvlt_from_name" type="text" class="regular-text" value="<?php echo esc_attr( $from_name ); ?>" placeholder="GOTV Advantage"></td>
+				</tr>
 				<tr>
 					<th scope="row"><label for="gotvlt_confirmation_subject">Subject</label></th>
 					<td><input name="gotvlt_confirmation_subject" id="gotvlt_confirmation_subject" type="text" class="regular-text" value="<?php echo esc_attr( $subject ); ?>"></td>
